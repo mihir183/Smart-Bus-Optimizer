@@ -3,7 +3,7 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_socketio import SocketIO
 from flask_cors import CORS
 from sqlalchemy import text   # ✅ needed for raw SQL
-from .api import api_bp  # Import from app/api.py, not app/api/__init__.py
+from .api import api_bp
 import os
 
 # Initialize extensions

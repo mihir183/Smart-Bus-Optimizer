@@ -1,9 +1,9 @@
 import os
 import sys
 import time
+import logging
 from app import create_app, get_socketio
 from app.simulator import BusSimulator
-import logging
 
 # Ensure logs directory exists
 os.makedirs('logs', exist_ok=True)
@@ -29,23 +29,22 @@ def simulate_loading():
 def main():
     """Main function to run the application"""
     try:
-        # Create Flask app
+        # Create Flask app and socket
         app = create_app()
         socketio = get_socketio()
-        
+
         # Simulate loading
         simulate_loading()
 
         # Initialize simulator within app context
         with app.app_context():
             simulator = BusSimulator(socketio)
-            # Start simulation for all routes
             simulator.start_simulation()
 
         logger.info("Starting Smart Bus System...")
         logger.info("Dashboard available at: http://localhost:5000")
-        logger.info("API documentation available at: http://localhost:5000/api/health")
-        
+        logger.info("API health check at: http://localhost:5000/api/health")
+
         # Run the application
         socketio.run(
             app,
@@ -54,7 +53,7 @@ def main():
             debug=os.environ.get('FLASK_ENV') == 'development',
             allow_unsafe_werkzeug=True
         )
-        
+
     except KeyboardInterrupt:
         logger.info("Shutting down Smart Bus System...")
         if 'simulator' in locals():
@@ -64,5 +63,4 @@ def main():
         sys.exit(1)
 
 if __name__ == '__main__':
-    # Run the application
     main()
