@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Bus System - Dashboard</title>
+    
+    <!-- CSS -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='libs/leaflet/leaflet.css') }}">
+    
+    <!-- JavaScript Libraries -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.js"></script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="container">
+            <a href="/" class="logo">🚌 Smart Bus System</a>
+            <nav class="nav">
+                <a href="/">Dashboard</a>
+                <a href="/map">Map View</a>
+                <a href="/routes">Routes</a>
+                <a href="/analytics">Analytics</a>
+            </nav>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <div class="container">
+            <!-- Alert Container -->
+            <div id="alertContainer"></div>
+            
+            <!-- System Health -->
+            <div id="healthStatus" class="mb-4"></div>
+            
+            <!-- Connection Status -->
+            <div id="connectionStatus" class="mb-4"></div>
+            
+            <!-- Dashboard Stats -->
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-value" id="totalRoutes">-</div>
+                    <div class="stat-label">Active Routes</div>
+                </div>
+                <div id="busStatus"></div>
+                <div class="stat-card">
+                    <div class="stat-value" id="activeTrips">-</div>
+                    <div class="stat-label">Active Trips</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="onTimePercentage">-</div>
+                    <div class="stat-label">On-Time %</div>
+                </div>
+            </div>
+            
+            <!-- Real-time Info -->
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title">Real-time Information</h2>
+                    <div class="d-flex justify-content-between align-items-center">
+                        <label class="form-label">
+                            <input type="checkbox" id="autoRefresh" checked> Auto-refresh
+                        </label>
+                        <button class="btn btn-sm btn-primary btn-refresh">Refresh</button>
+                    </div>
+                </div>
+                <div id="realTimeInfo">
+                    <div class="loading">
+                        <div class="spinner"></div>
+                        <p>Loading real-time data...</p>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Route Selection -->
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title">Route Management</h2>
+                </div>
+                <div class="grid grid-2">
+                    <div>
+                        <label for="routeSelect" class="form-label">Select Route</label>
+                        <select id="routeSelect" class="form-control form-select">
+                            <option value="">Select a route...</option>
+                        </select>
+                    </div>
+                    <div class="d-flex align-items-end">
+                        <button id="generatePredictions" class="btn btn-primary">Generate Predictions</button>
+                        <button id="detectBunching" class="btn btn-warning">Detect Bunching</button>
+                    </div>
+                </div>
+                
+                <!-- Route Info -->
+                <div id="routeInfo" class="mt-3"></div>
+            </div>
+            
+            <!-- Map View -->
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title">Live Map</h2>
+                </div>
+                <div id="map" class="map-container"></div>
+            </div>
+            
+            <!-- Trips Table -->
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title">Recent Trips</h2>
+                </div>
+                <div class="table-responsive">
+                    <table class="table" id="tripsTable">
+                        <thead>
+                            <tr>
+                                <th>Route</th>
+                                <th>Bus</th>
+                                <th>Scheduled Start</th>
+                                <th>Actual Start</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td colspan="6" class="text-center">Loading trips...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            
+            <!-- Predictions Table -->
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title">Arrival Predictions</h2>
+                </div>
+                <div class="table-responsive">
+                    <table class="table" id="predictionsTable">
+                        <thead>
+                            <tr>
+                                <th>Stop</th>
+                                <th>Predicted Arrival</th>
+                                <th>Confidence</th>
+                                <th>Model Version</th>
+                                <th>Generated At</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td colspan="5" class="text-center">Loading predictions...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            
+            <!-- Bunching Information -->
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title">Bunching Detection</h2>
+                </div>
+                <div id="bunchingInfo">
+                    <p class="text-center text-muted">Select a route and click "Detect Bunching" to analyze bus bunching.</p>
+                </div>
+            </div>
+        </div>
+    </main>
+    
+    <!-- Loading Overlay -->
+    <div id="loadingOverlay" class="d-none" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 9999; display: flex; justify-content: center; align-items: center; color: white;">
+        <div class="loading">
+            <div class="spinner"></div>
+            <p>Loading...</p>
+        </div>
+    </div>
+    
+    <!-- JavaScript -->
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+</html>

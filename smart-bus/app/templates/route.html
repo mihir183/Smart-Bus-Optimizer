@@ -1,0 +1,624 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Bus System - Route Details</title>
+    
+    <!-- CSS -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='libs/leaflet/leaflet.css') }}">
+    
+    <!-- JavaScript Libraries -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.js"></script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="container">
+            <a href="/" class="logo">🚌 Smart Bus System</a>
+            <nav class="nav">
+                <a href="/">Dashboard</a>
+                <a href="/map">Map View</a>
+                <a href="/routes" class="active">Routes</a>
+                <a href="/analytics">Analytics</a>
+            </nav>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <div class="container">
+            <!-- Alert Container -->
+            <div id="alertContainer"></div>
+            
+            <!-- Route Selection -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h2 class="card-title">Select Route</h2>
+                </div>
+                <div class="grid grid-2">
+                    <div>
+                        <label for="routeSelect" class="form-label">Route</label>
+                        <select id="routeSelect" class="form-control form-select">
+                            <option value="">Select a route...</option>
+                        </select>
+                    </div>
+                    <div class="d-flex align-items-end">
+                        <button id="loadRouteDetails" class="btn btn-primary">Load Details</button>
+                        <button id="generateRoutePredictions" class="btn btn-success">Generate Predictions</button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Route Information -->
+            <div id="routeDetails" class="d-none">
+                <!-- Route Overview -->
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h2 class="card-title">Route Overview</h2>
+                    </div>
+                    <div id="routeOverview" class="grid grid-2">
+                        <!-- Route info will be populated here -->
+                    </div>
+                </div>
+                
+                <!-- Route Map -->
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h2 class="card-title">Route Map</h2>
+                    </div>
+                    <div id="routeMap" class="map-container"></div>
+                </div>
+                
+                <!-- Route Stops -->
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h2 class="card-title">Route Stops</h2>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table" id="stopsTable">
+                            <thead>
+                                <tr>
+                                    <th>Stop #</th>
+                                    <th>Name</th>
+                                    <th>Code</th>
+                                    <th>Coordinates</th>
+                                    <th>Time from Start</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <!-- Stops will be populated here -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                
+                <!-- Current Trips -->
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h2 class="card-title">Current Trips</h2>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table" id="currentTripsTable">
+                            <thead>
+                                <tr>
+                                    <th>Trip ID</th>
+                                    <th>Bus</th>
+                                    <th>Scheduled Start</th>
+                                    <th>Actual Start</th>
+                                    <th>Status</th>
+                                    <th>Progress</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <!-- Trips will be populated here -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                
+                <!-- Arrival Predictions -->
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h2 class="card-title">Arrival Predictions</h2>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table" id="predictionsTable">
+                            <thead>
+                                <tr>
+                                    <th>Stop</th>
+                                    <th>Next Bus</th>
+                                    <th>Predicted Arrival</th>
+                                    <th>Confidence</th>
+                                    <th>Delay</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <!-- Predictions will be populated here -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                
+                <!-- Route Performance -->
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h2 class="card-title">Route Performance</h2>
+                    </div>
+                    <div class="grid grid-3">
+                        <div class="stat-card">
+                            <div class="stat-value" id="onTimePercentage">-</div>
+                            <div class="stat-label">On-Time %</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value" id="avgDelay">-</div>
+                            <div class="stat-label">Avg Delay (min)</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value" id="avgOccupancy">-</div>
+                            <div class="stat-label">Avg Occupancy %</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Schedule Adjustments -->
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h2 class="card-title">Recent Schedule Adjustments</h2>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table" id="adjustmentsTable">
+                            <thead>
+                                <tr>
+                                    <th>Type</th>
+                                    <th>Reason</th>
+                                    <th>Status</th>
+                                    <th>Created</th>
+                                    <th>Applied</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <!-- Adjustments will be populated here -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+    
+    <!-- JavaScript -->
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+    <script>
+        // Route-specific functionality
+        class RouteView extends SmartBusApp {
+            constructor() {
+                super();
+                this.currentRoute = null;
+                this.routeMap = null;
+                this.routeStops = [];
+                this.routeTrips = [];
+                this.routePredictions = [];
+                
+                this.initializeRouteView();
+            }
+            
+            initializeRouteView() {
+                this.initializeRouteControls();
+                this.loadRoutes();
+            }
+            
+            initializeRouteControls() {
+                // Route selection
+                const routeSelect = document.getElementById('routeSelect');
+                if (routeSelect) {
+                    routeSelect.addEventListener('change', (e) => {
+                        this.selectRoute(e.target.value);
+                    });
+                }
+                
+                // Load route details button
+                const loadRouteDetailsBtn = document.getElementById('loadRouteDetails');
+                if (loadRouteDetailsBtn) {
+                    loadRouteDetailsBtn.addEventListener('click', () => {
+                        this.loadRouteDetails();
+                    });
+                }
+                
+                // Generate predictions button
+                const generatePredictionsBtn = document.getElementById('generateRoutePredictions');
+                if (generatePredictionsBtn) {
+                    generatePredictionsBtn.addEventListener('click', () => {
+                        this.generateRoutePredictions();
+                    });
+                }
+            }
+            
+            selectRoute(routeId) {
+                if (!routeId) {
+                    this.hideRouteDetails();
+                    return;
+                }
+                
+                this.currentRoute = this.routes.find(r => r.id == routeId);
+                this.showRouteDetails();
+            }
+            
+            showRouteDetails() {
+                const routeDetails = document.getElementById('routeDetails');
+                if (routeDetails) {
+                    routeDetails.classList.remove('d-none');
+                }
+            }
+            
+            hideRouteDetails() {
+                const routeDetails = document.getElementById('routeDetails');
+                if (routeDetails) {
+                    routeDetails.classList.add('d-none');
+                }
+            }
+            
+            async loadRouteDetails() {
+                if (!this.currentRoute) {
+                    this.showAlert('Please select a route first', 'warning');
+                    return;
+                }
+                
+                try {
+                    this.showLoading('Loading route details...');
+                    
+                    await Promise.all([
+                        this.loadRouteInfo(),
+                        this.loadRouteStops(),
+                        this.loadRouteTrips(),
+                        this.loadRoutePredictions(),
+                        this.loadRoutePerformance(),
+                        this.loadScheduleAdjustments()
+                    ]);
+                    
+                    this.initializeRouteMap();
+                    this.updateRouteOverview();
+                    this.updateStopsTable();
+                    this.updateTripsTable();
+                    this.updatePredictionsTable();
+                    this.updatePerformanceStats();
+                    this.updateAdjustmentsTable();
+                    
+                } catch (error) {
+                    console.error('Error loading route details:', error);
+                    this.showAlert('Error loading route details', 'danger');
+                } finally {
+                    this.hideLoading();
+                }
+            }
+            
+            async loadRouteInfo() {
+                const response = await fetch(`/api/routes/${this.currentRoute.id}`);
+                const data = await response.json();
+                
+                if (data.success) {
+                    this.routeInfo = data.data;
+                } else {
+                    throw new Error(data.error);
+                }
+            }
+            
+            async loadRouteStops() {
+                if (this.routeInfo && this.routeInfo.stops) {
+                    this.routeStops = this.routeInfo.stops;
+                }
+            }
+            
+            async loadRouteTrips() {
+                const response = await fetch(`/api/trips?route_id=${this.currentRoute.id}`);
+                const data = await response.json();
+                
+                if (data.success) {
+                    this.routeTrips = data.data;
+                } else {
+                    throw new Error(data.error);
+                }
+            }
+            
+            async loadRoutePredictions() {
+                const response = await fetch(`/api/predictions?route_id=${this.currentRoute.id}`);
+                const data = await response.json();
+                
+                if (data.success) {
+                    this.routePredictions = data.data;
+                } else {
+                    throw new Error(data.error);
+                }
+            }
+            
+            async loadRoutePerformance() {
+                const response = await fetch(`/api/analytics/route-performance?route_id=${this.currentRoute.id}`);
+                const data = await response.json();
+                
+                if (data.success) {
+                    this.routePerformance = data.data;
+                } else {
+                    throw new Error(data.error);
+                }
+            }
+            
+            async loadScheduleAdjustments() {
+                const response = await fetch(`/api/schedule/adjustments?route_id=${this.currentRoute.id}`);
+                const data = await response.json();
+                
+                if (data.success) {
+                    this.scheduleAdjustments = data.data;
+                } else {
+                    throw new Error(data.error);
+                }
+            }
+            
+            initializeRouteMap() {
+                if (this.routeMap) {
+                    this.routeMap.remove();
+                }
+                
+                this.routeMap = L.map('routeMap').setView([40.7128, -74.0060], 13);
+                
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    attribution: '© OpenStreetMap contributors'
+                }).addTo(this.routeMap);
+                
+                this.updateRouteMap();
+            }
+            
+            updateRouteMap() {
+                if (!this.routeMap || !this.routeStops) return;
+                
+                // Clear existing markers
+                this.routeMap.eachLayer(layer => {
+                    if (layer instanceof L.Marker) {
+                        this.routeMap.removeLayer(layer);
+                    }
+                });
+                
+                // Add stop markers
+                this.routeStops.forEach((stop, index) => {
+                    const marker = L.marker([stop.latitude, stop.longitude])
+                        .addTo(this.routeMap)
+                        .bindPopup(`
+                            <strong>Stop ${index + 1}</strong><br>
+                            ${stop.name}<br>
+                            Code: ${stop.code || 'N/A'}
+                        `);
+                });
+                
+                // Add route line
+                if (this.routeStops.length > 1) {
+                    const routeLine = L.polyline(
+                        this.routeStops.map(stop => [stop.latitude, stop.longitude]),
+                        { color: '#3498db', weight: 4 }
+                    ).addTo(this.routeMap);
+                    
+                    // Fit map to show entire route
+                    this.routeMap.fitBounds(routeLine.getBounds().pad(0.1));
+                }
+            }
+            
+            updateRouteOverview() {
+                const routeOverview = document.getElementById('routeOverview');
+                if (!routeOverview || !this.routeInfo) return;
+                
+                const route = this.routeInfo.route;
+                routeOverview.innerHTML = `
+                    <div>
+                        <h3>${route.route_number} - ${route.name}</h3>
+                        <p><strong>Description:</strong> ${route.description || 'N/A'}</p>
+                        <p><strong>From:</strong> ${route.start_stop}</p>
+                        <p><strong>To:</strong> ${route.end_stop}</p>
+                    </div>
+                    <div>
+                        <p><strong>Total Distance:</strong> ${route.total_distance || 'N/A'} km</p>
+                        <p><strong>Estimated Duration:</strong> ${route.estimated_duration || 'N/A'} minutes</p>
+                        <p><strong>Number of Stops:</strong> ${this.routeStops.length}</p>
+                        <p><strong>Status:</strong> <span class="status ${route.is_active ? 'on-time' : 'cancelled'}">${route.is_active ? 'Active' : 'Inactive'}</span></p>
+                    </div>
+                `;
+            }
+            
+            updateStopsTable() {
+                const tbody = document.querySelector('#stopsTable tbody');
+                if (!tbody) return;
+                
+                tbody.innerHTML = '';
+                
+                this.routeStops.forEach((stop, index) => {
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td>${index + 1}</td>
+                        <td>${stop.name}</td>
+                        <td>${stop.code || 'N/A'}</td>
+                        <td>${stop.latitude.toFixed(4)}, ${stop.longitude.toFixed(4)}</td>
+                        <td>${stop.estimated_time_from_start || 'N/A'} min</td>
+                    `;
+                    tbody.appendChild(row);
+                });
+            }
+            
+            updateTripsTable() {
+                const tbody = document.querySelector('#currentTripsTable tbody');
+                if (!tbody) return;
+                
+                tbody.innerHTML = '';
+                
+                this.routeTrips.forEach(trip => {
+                    const progress = this.calculateTripProgress(trip);
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td>${trip.id}</td>
+                        <td>${trip.bus_number || 'N/A'}</td>
+                        <td>${this.formatTime(trip.scheduled_start_time)}</td>
+                        <td>${trip.actual_start_time ? this.formatTime(trip.actual_start_time) : 'N/A'}</td>
+                        <td><span class="status ${this.getStatusClass(trip.status)}">${trip.status}</span></td>
+                        <td>${progress}%</td>
+                        <td>
+                            <button class="btn btn-sm btn-primary" onclick="app.viewTripDetails(${trip.id})">
+                                View
+                            </button>
+                        </td>
+                    `;
+                    tbody.appendChild(row);
+                });
+            }
+            
+            updatePredictionsTable() {
+                const tbody = document.querySelector('#predictionsTable tbody');
+                if (!tbody) return;
+                
+                tbody.innerHTML = '';
+                
+                // Group predictions by stop
+                const predictionsByStop = {};
+                this.routePredictions.forEach(pred => {
+                    if (!predictionsByStop[pred.stop_id]) {
+                        predictionsByStop[pred.stop_id] = [];
+                    }
+                    predictionsByStop[pred.stop_id].push(pred);
+                });
+                
+                // Show next prediction for each stop
+                Object.entries(predictionsByStop).forEach(([stopId, predictions]) => {
+                    const nextPrediction = predictions.sort((a, b) => 
+                        new Date(a.predicted_arrival_time) - new Date(b.predicted_arrival_time)
+                    )[0];
+                    
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td>${nextPrediction.stop_name || 'N/A'}</td>
+                        <td>Bus ${nextPrediction.trip_id}</td>
+                        <td>${this.formatTime(nextPrediction.predicted_arrival_time)}</td>
+                        <td>${Math.round(nextPrediction.confidence_score * 100)}%</td>
+                        <td>${this.calculateDelay(nextPrediction.predicted_arrival_time)}</td>
+                    `;
+                    tbody.appendChild(row);
+                });
+            }
+            
+            updatePerformanceStats() {
+                if (!this.routePerformance) return;
+                
+                const onTimePercentage = document.getElementById('onTimePercentage');
+                const avgDelay = document.getElementById('avgDelay');
+                const avgOccupancy = document.getElementById('avgOccupancy');
+                
+                if (onTimePercentage) {
+                    onTimePercentage.textContent = this.routePerformance.on_time_percentage || '-';
+                }
+                
+                if (avgDelay) {
+                    avgDelay.textContent = this.routePerformance.average_delay_minutes || '-';
+                }
+                
+                if (avgOccupancy) {
+                    avgOccupancy.textContent = this.routePerformance.avg_occupancy || '-';
+                }
+            }
+            
+            updateAdjustmentsTable() {
+                const tbody = document.querySelector('#adjustmentsTable tbody');
+                if (!tbody) return;
+                
+                tbody.innerHTML = '';
+                
+                if (!this.scheduleAdjustments || this.scheduleAdjustments.length === 0) {
+                    const row = document.createElement('tr');
+                    row.innerHTML = '<td colspan="5" class="text-center">No recent adjustments</td>';
+                    tbody.appendChild(row);
+                    return;
+                }
+                
+                this.scheduleAdjustments.forEach(adjustment => {
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td>${adjustment.adjustment_type}</td>
+                        <td>${adjustment.reason || 'N/A'}</td>
+                        <td><span class="status ${this.getStatusClass(adjustment.status)}">${adjustment.status}</span></td>
+                        <td>${this.formatTime(adjustment.created_at)}</td>
+                        <td>${adjustment.applied_at ? this.formatTime(adjustment.applied_at) : 'N/A'}</td>
+                    `;
+                    tbody.appendChild(row);
+                });
+            }
+            
+            calculateTripProgress(trip) {
+                // Simplified progress calculation
+                if (trip.status === 'completed') return 100;
+                if (trip.status === 'scheduled') return 0;
+                if (trip.status === 'in_progress') {
+                    // Estimate progress based on time elapsed
+                    const startTime = new Date(trip.actual_start_time || trip.scheduled_start_time);
+                    const now = new Date();
+                    const elapsed = (now - startTime) / (1000 * 60); // minutes
+                    const estimatedDuration = 60; // Assume 60 minutes for now
+                    return Math.min(100, Math.round((elapsed / estimatedDuration) * 100));
+                }
+                return 0;
+            }
+            
+            calculateDelay(predictedTime) {
+                const now = new Date();
+                const predicted = new Date(predictedTime);
+                const delayMinutes = Math.round((predicted - now) / (1000 * 60));
+                
+                if (delayMinutes > 0) {
+                    return `+${delayMinutes} min`;
+                } else if (delayMinutes < 0) {
+                    return `${delayMinutes} min`;
+                } else {
+                    return 'On time';
+                }
+            }
+            
+            async generateRoutePredictions() {
+                if (!this.currentRoute) {
+                    this.showAlert('Please select a route first', 'warning');
+                    return;
+                }
+                
+                try {
+                    this.showLoading('Generating predictions...');
+                    
+                    const response = await fetch('/api/predictions/generate', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            route_id: this.currentRoute.id,
+                            hours_ahead: 2
+                        })
+                    });
+                    
+                    const data = await response.json();
+                    
+                    if (data.success) {
+                        this.showAlert(`Generated ${data.data.predictions_generated} predictions`, 'success');
+                        this.loadRoutePredictions();
+                        this.updatePredictionsTable();
+                    } else {
+                        throw new Error(data.error);
+                    }
+                } catch (error) {
+                    console.error('Error generating predictions:', error);
+                    this.showAlert('Error generating predictions', 'danger');
+                } finally {
+                    this.hideLoading();
+                }
+            }
+        }
+        
+        // Initialize route view when DOM is loaded
+        document.addEventListener('DOMContentLoaded', () => {
+            window.app = new RouteView();
+        });
+    </script>
+</body>
+</html>

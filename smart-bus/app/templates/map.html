@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Bus System - Map View</title>
+    
+    <!-- CSS -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='libs/leaflet/leaflet.css') }}">
+    
+    <!-- JavaScript Libraries -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.js"></script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="container">
+            <a href="/" class="logo">🚌 Smart Bus System</a>
+            <nav class="nav">
+                <a href="/">Dashboard</a>
+                <a href="/map" class="active">Map View</a>
+                <a href="/routes">Routes</a>
+                <a href="/analytics">Analytics</a>
+            </nav>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <div class="container">
+            <!-- Alert Container -->
+            <div id="alertContainer"></div>
+            
+            <!-- Map Controls -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h2 class="card-title">Map Controls</h2>
+                </div>
+                <div class="grid grid-3">
+                    <div>
+                        <label for="routeSelect" class="form-label">Select Route</label>
+                        <select id="routeSelect" class="form-control form-select">
+                            <option value="">All Routes</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label for="busSelect" class="form-label">Select Bus</label>
+                        <select id="busSelect" class="form-control form-select">
+                            <option value="">All Buses</option>
+                        </select>
+                    </div>
+                    <div class="d-flex align-items-end">
+                        <button id="centerMap" class="btn btn-primary">Center Map</button>
+                        <button id="toggleTraffic" class="btn btn-secondary">Toggle Traffic</button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Map Container -->
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title">Live Bus Tracking</h2>
+                    <div class="d-flex justify-content-between align-items-center">
+                        <span id="connectionStatus" class="real-time-indicator">Connected</span>
+                        <div>
+                            <button id="refreshMap" class="btn btn-sm btn-primary">Refresh</button>
+                            <button id="fullscreenMap" class="btn btn-sm btn-secondary">Fullscreen</button>
+                        </div>
+                    </div>
+                </div>
+                <div id="map" class="map-container full-height"></div>
+            </div>
+            
+            <!-- Bus Information Panel -->
+            <div class="grid grid-2 mt-4">
+                <!-- Selected Bus Info -->
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">Selected Bus Information</h3>
+                    </div>
+                    <div id="selectedBusInfo">
+                        <p class="text-center text-muted">Click on a bus marker to view details</p>
+                    </div>
+                </div>
+                
+                <!-- Route Information -->
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">Route Information</h3>
+                    </div>
+                    <div id="routeInfo">
+                        <p class="text-center text-muted">Select a route to view information</p>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Live Updates -->
+            <div class="card mt-4">
+                <div class="card-header">
+                    <h2 class="card-title">Live Updates</h2>
+                </div>
+                <div id="liveUpdates" class="table-responsive">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Time</th>
+                                <th>Bus</th>
+                                <th>Event</th>
+                                <th>Details</th>
+                            </tr>
+                        </thead>
+                        <tbody id="liveUpdatesBody">
+                            <tr>
+                                <td colspan="4" class="text-center">Waiting for updates...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </main>
+    
+    <!-- JavaScript -->
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+    <script>
+        // Map-specific functionality
+        class MapView extends SmartBusApp {
+            constructor() {
+                super();
+                this.selectedBus = null;
+                this.trafficLayer = null;
+                this.liveUpdates = [];
+                this.maxUpdates = 50;
+                
+                this.initializeMapView();
+            }
+            
+            initializeMapView() {
+                this.initializeMap();
+                this.initializeMapControls();
+                this.startLiveUpdates();
+            }
+            
+            initializeMap() {
+                // Initialize map with default view
+                this.map = L.map('map').setView([40.7128, -74.0060], 13);
+                
+                // Add base layer
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    attribution: '© OpenStreetMap contributors'
+                }).addTo(this.map);
+                
+                // Add traffic layer (placeholder)
+                this.trafficLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    attribution: 'Traffic data placeholder'
+                });
+            }
+            
+            initializeMapControls() {
+                // Route selection
+                const routeSelect = document.getElementById('routeSelect');
+                if (routeSelect) {
+                    routeSelect.addEventListener('change', (e) => {
+                        this.filterByRoute(e.target.value);
+                    });
+                }
+                
+                // Bus selection
+                const busSelect = document.getElementById('busSelect');
+                if (busSelect) {
+                    busSelect.addEventListener('change', (e) => {
+                        this.filterByBus(e.target.value);
+                    });
+                }
+                
+                // Center map button
+                const centerMapBtn = document.getElementById('centerMap');
+                if (centerMapBtn) {
+                    centerMapBtn.addEventListener('click', () => {
+                        this.centerMapOnBuses();
+                    });
+                }
+                
+                // Toggle traffic button
+                const toggleTrafficBtn = document.getElementById('toggleTraffic');
+                if (toggleTrafficBtn) {
+                    toggleTrafficBtn.addEventListener('click', () => {
+                        this.toggleTrafficLayer();
+                    });
+                }
+                
+                // Refresh map button
+                const refreshMapBtn = document.getElementById('refreshMap');
+                if (refreshMapBtn) {
+                    refreshMapBtn.addEventListener('click', () => {
+                        this.refreshMapData();
+                    });
+                }
+                
+                // Fullscreen button
+                const fullscreenMapBtn = document.getElementById('fullscreenMap');
+                if (fullscreenMapBtn) {
+                    fullscreenMapBtn.addEventListener('click', () => {
+                        this.toggleFullscreen();
+                    });
+                }
+            }
+            
+            filterByRoute(routeId) {
+                if (!routeId) {
+                    // Show all buses
+                    Object.values(this.markers).forEach(marker => {
+                        if (marker._icon) {
+                            marker._icon.style.display = 'block';
+                        }
+                    });
+                } else {
+                    // Hide buses not on selected route
+                    Object.entries(this.markers).forEach(([key, marker]) => {
+                        if (key.startsWith('bus_')) {
+                            const busId = key.replace('bus_', '');
+                            const busData = this.realTimeData[busId];
+                            
+                            if (busData && busData.routeId == routeId) {
+                                marker._icon.style.display = 'block';
+                            } else {
+                                marker._icon.style.display = 'none';
+                            }
+                        }
+                    });
+                }
+            }
+            
+            filterByBus(busId) {
+                if (!busId) {
+                    // Show all buses
+                    Object.values(this.markers).forEach(marker => {
+                        if (marker._icon) {
+                            marker._icon.style.display = 'block';
+                        }
+                    });
+                } else {
+                    // Show only selected bus
+                    Object.entries(this.markers).forEach(([key, marker]) => {
+                        if (key === `bus_${busId}`) {
+                            marker._icon.style.display = 'block';
+                            this.map.setView(marker.getLatLng(), 15);
+                        } else {
+                            marker._icon.style.display = 'none';
+                        }
+                    });
+                }
+            }
+            
+            centerMapOnBuses() {
+                const busMarkers = Object.values(this.markers).filter(marker => 
+                    marker._icon && marker._icon.style.display !== 'none'
+                );
+                
+                if (busMarkers.length > 0) {
+                    const group = new L.featureGroup(busMarkers);
+                    this.map.fitBounds(group.getBounds().pad(0.1));
+                }
+            }
+            
+            toggleTrafficLayer() {
+                if (this.map.hasLayer(this.trafficLayer)) {
+                    this.map.removeLayer(this.trafficLayer);
+                } else {
+                    this.map.addLayer(this.trafficLayer);
+                }
+            }
+            
+            refreshMapData() {
+                this.loadBuses();
+                this.showAlert('Map data refreshed', 'success');
+            }
+            
+            toggleFullscreen() {
+                const mapContainer = document.getElementById('map');
+                if (!document.fullscreenElement) {
+                    mapContainer.requestFullscreen();
+                } else {
+                    document.exitFullscreen();
+                }
+            }
+            
+            updateBusMarker(busId, lat, lng, speed) {
+                super.updateBusMarker(busId, lat, lng, speed);
+                
+                // Update bus selection dropdown
+                this.updateBusSelect();
+                
+                // Update selected bus info if this is the selected bus
+                if (this.selectedBus && this.selectedBus.id == busId) {
+                    this.updateSelectedBusInfo();
+                }
+            }
+            
+            updateBusSelect() {
+                const busSelect = document.getElementById('busSelect');
+                if (!busSelect) return;
+                
+                // Clear existing options except "All Buses"
+                busSelect.innerHTML = '<option value="">All Buses</option>';
+                
+                // Add active buses
+                Object.keys(this.realTimeData).forEach(busId => {
+                    const option = document.createElement('option');
+                    option.value = busId;
+                    option.textContent = `Bus ${busId}`;
+                    busSelect.appendChild(option);
+                });
+            }
+            
+            updateSelectedBusInfo() {
+                const selectedBusInfo = document.getElementById('selectedBusInfo');
+                if (!selectedBusInfo || !this.selectedBus) return;
+                
+                const busData = this.realTimeData[this.selectedBus.id];
+                if (!busData) return;
+                
+                selectedBusInfo.innerHTML = `
+                    <div class="grid grid-2">
+                        <div>
+                            <strong>Bus ID:</strong> ${this.selectedBus.id}<br>
+                            <strong>Route:</strong> ${this.selectedBus.route || 'N/A'}<br>
+                            <strong>Status:</strong> <span class="status in-progress">Active</span>
+                        </div>
+                        <div>
+                            <strong>Speed:</strong> ${busData.speed ? Math.round(busData.speed) + ' km/h' : 'N/A'}<br>
+                            <strong>Occupancy:</strong> ${busData.occupancy ? Math.round(busData.occupancy) + '%' : 'N/A'}<br>
+                            <strong>Last Update:</strong> ${this.formatTime(busData.lastUpdate)}
+                        </div>
+                    </div>
+                `;
+            }
+            
+            handleGPSUpdate(data) {
+                super.handleGPSUpdate(data);
+                this.addLiveUpdate('GPS', data.bus_id, `Position: ${data.latitude.toFixed(4)}, ${data.longitude.toFixed(4)}`);
+            }
+            
+            handleOccupancyUpdate(data) {
+                super.handleOccupancyUpdate(data);
+                this.addLiveUpdate('Occupancy', data.bus_id, `${data.occupancy_percentage}% full`);
+            }
+            
+            handleDelayUpdate(data) {
+                super.handleDelayUpdate(data);
+                this.addLiveUpdate('Delay', data.bus_id, `${data.delay_minutes} minutes (${data.reason})`);
+            }
+            
+            addLiveUpdate(type, busId, details) {
+                this.liveUpdates.unshift({
+                    time: new Date(),
+                    type: type,
+                    busId: busId,
+                    details: details
+                });
+                
+                // Keep only recent updates
+                if (this.liveUpdates.length > this.maxUpdates) {
+                    this.liveUpdates = this.liveUpdates.slice(0, this.maxUpdates);
+                }
+                
+                this.updateLiveUpdatesTable();
+            }
+            
+            updateLiveUpdatesTable() {
+                const tbody = document.getElementById('liveUpdatesBody');
+                if (!tbody) return;
+                
+                tbody.innerHTML = '';
+                
+                this.liveUpdates.forEach(update => {
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td>${this.formatTime(update.time)}</td>
+                        <td>Bus ${update.busId}</td>
+                        <td><span class="status ${this.getUpdateStatusClass(update.type)}">${update.type}</span></td>
+                        <td>${update.details}</td>
+                    `;
+                    tbody.appendChild(row);
+                });
+            }
+            
+            getUpdateStatusClass(type) {
+                const statusClasses = {
+                    'GPS': 'on-time',
+                    'Occupancy': 'in-progress',
+                    'Delay': 'delayed'
+                };
+                
+                return statusClasses[type] || 'status-scheduled';
+            }
+            
+            startLiveUpdates() {
+                // Update live updates table every 5 seconds
+                setInterval(() => {
+                    this.updateLiveUpdatesTable();
+                }, 5000);
+            }
+        }
+        
+        // Initialize map view when DOM is loaded
+        document.addEventListener('DOMContentLoaded', () => {
+            window.app = new MapView();
+        });
+    </script>
+</body>
+</html>

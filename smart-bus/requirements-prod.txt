@@ -1,0 +1,57 @@
+# Production requirements with PostgreSQL support
+# Use this file when deploying with PostgreSQL database
+
+# Flask and Web Framework
+Flask==2.3.3
+Flask-SQLAlchemy==3.0.5
+Flask-SocketIO==5.3.6
+Flask-CORS==4.0.0
+Werkzeug==2.3.7
+
+# Database (Production with PostgreSQL)
+SQLAlchemy==2.0.21
+psycopg2-binary==2.9.7
+alembic==1.12.0
+
+# Machine Learning
+scikit-learn==1.3.1
+numpy==1.24.3
+pandas==2.0.3
+joblib==1.3.2
+
+# Data Processing
+scipy==1.11.2
+matplotlib==3.7.2
+seaborn==0.12.2
+
+# Jupyter Notebook
+jupyter==1.0.0
+ipykernel==6.25.1
+notebook==7.0.2
+
+# HTTP and API
+requests==2.31.0
+urllib3==2.0.4
+
+# Utilities
+python-dotenv==1.0.0
+python-dateutil==2.8.2
+pytz==2023.3
+
+# Development and Testing
+pytest==7.4.2
+pytest-flask==1.2.0
+pytest-cov==4.1.0
+black==23.7.0
+flake8==6.0.0
+
+# Production
+gunicorn==21.2.0
+redis==4.6.0
+
+# Geospatial (optional)
+geopy==2.3.0
+folium==0.14.0
+
+# Monitoring and Logging
+structlog==23.1.0

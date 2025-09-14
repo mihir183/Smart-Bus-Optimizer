@@ -1,0 +1,88 @@
+version: '3.8'
+
+services:
+  # Smart Bus Application
+  smart-bus:
+    build: .
+    ports:
+      - "5000:5000"
+    environment:
+      - FLASK_ENV=production
+      - DATABASE_URL=postgresql://smartbus:smartbus123@db:5432/smartbus
+      - SECRET_KEY=your-secret-key-change-in-production
+      - REDIS_URL=redis://redis:6379/0
+    depends_on:
+      - db
+      - redis
+    volumes:
+      - ./data:/app/data
+      - ./models:/app/models
+      - ./logs:/app/logs
+    restart: unless-stopped
+    networks:
+      - smart-bus-network
+
+  # PostgreSQL Database
+  db:
+    image: postgres:13
+    environment:
+      - POSTGRES_DB=smartbus
+      - POSTGRES_USER=smartbus
+      - POSTGRES_PASSWORD=smartbus123
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - "5432:5432"
+    restart: unless-stopped
+    networks:
+      - smart-bus-network
+
+  # Redis for caching and session storage
+  redis:
+    image: redis:6-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+    networks:
+      - smart-bus-network
+
+  # Nginx reverse proxy
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf
+      - ./ssl:/etc/nginx/ssl
+    depends_on:
+      - smart-bus
+    restart: unless-stopped
+    networks:
+      - smart-bus-network
+
+  # Jupyter Notebook for data analysis
+  jupyter:
+    build: .
+    command: jupyter notebook --ip=0.0.0.0 --port=8888 --no-browser --allow-root --NotebookApp.token=''
+    ports:
+      - "8888:8888"
+    volumes:
+      - ./notebooks:/app/notebooks
+      - ./data:/app/data
+    environment:
+      - JUPYTER_ENABLE_LAB=yes
+    restart: unless-stopped
+    networks:
+      - smart-bus-network
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  smart-bus-network:
+    driver: bridge

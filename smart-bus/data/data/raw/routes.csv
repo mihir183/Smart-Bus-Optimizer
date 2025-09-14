@@ -1,0 +1,6 @@
+id,route_number,name,description,start_stop,end_stop,total_distance,estimated_duration,is_active,created_at
+1,1,Downtown Express,Fast service between downtown and university,Central Station,University Campus,12.5,35,1,2025-09-13 20:33:08.233970
+2,2,Airport Shuttle,Direct service to airport from city center,City Center,Airport Terminal,18.2,45,1,2025-09-13 20:33:08.233970
+3,3,Suburban Loop,Circular route through suburban areas,Mall Plaza,Mall Plaza,25.8,65,1,2025-09-13 20:33:08.233970
+4,4,Hospital Line,Service connecting major hospitals,General Hospital,Children's Hospital,8.7,25,1,2025-09-13 20:33:08.233970
+5,5,Industrial Zone,Service to industrial and business districts,Business District,Industrial Park,15.3,40,1,2025-09-13 20:33:08.233970
